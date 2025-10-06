@@ -44,7 +44,7 @@ brews:
       name: homebrew-tap
       token: "{{ .Env.GITHUB_TOKEN }}"
     homepage: https://github.com/WillyV3/vinw-workspace
-    description: "VINW Workspace - Interactive TMUX session manager"
+    description: "vinw-workspace"
     license: MIT
     directory: Formula
     commit_author:
