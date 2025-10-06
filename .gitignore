@@ -1,2 +1,6 @@
 logs/
 gotmux-docs/
+
+# Build artifacts
+dist/
+vinw-workspace
