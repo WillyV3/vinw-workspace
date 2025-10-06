@@ -106,6 +106,13 @@ type model struct {
 	commandNameInput   textinput.Model
 	commandCmdInput    textinput.Model
 	commandDescInput   textinput.Model
+	noobsCursor        int
+	statusMessage      statusMsg
+}
+
+type statusMsg struct {
+	text    string
+	isError bool
 }
 
 func initialModel() model {
@@ -219,6 +226,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.animFrame++
 			return m, tickAnimation()
 		}
+		return m, nil
+
+	case statusMsg:
+		m.statusMessage = msg
 		return m, nil
 
 	case tea.KeyMsg:
