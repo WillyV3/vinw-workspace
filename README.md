@@ -2,6 +2,8 @@
 
 Opinionated tmux workspace launcher featuring [vinw](https://github.com/willyv3/vinw) file browser.
 
+<img width="1334" height="660" alt="Screenshot 2025-10-06 at 1 25 06 PM" src="https://github.com/user-attachments/assets/cdbccc65-a511-4cb4-8ed1-10130711935e" />
+
 ## What is this?
 
 A simple TUI that launches tmux sessions with a fixed, powerful layout designed for modern terminal-based development workflows. Perfect for developers transitioning from VSCode who want the power of tmux without the configuration headaches.
