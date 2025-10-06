@@ -35,7 +35,7 @@ func getTmuxSessions() []string {
 	return names
 }
 
-func launchTmuxSession(dir, session, terminal, agent, sessionID string) error {
+func launchTmuxSession(dir, session, terminal, agent, sessionID, customCmd string) error {
 	absDir := os.ExpandEnv(dir)
 
 	tmux, err := gotmux.DefaultTmux()
@@ -125,8 +125,14 @@ func launchTmuxSession(dir, session, terminal, agent, sessionID string) error {
 	}
 	pane2 := panes[2]
 
-	// Pane 2 (bottom-right top): terminal/nextui if requested
-	if terminal == "nextui" {
+	// Pane 2 (bottom-right top): custom command, or terminal/nextui if requested
+	if customCmd != "" {
+		// Run custom command
+		_, err = tmux.Command("send-keys", "-R", "-t", pane2.Id, fmt.Sprintf("cd %s && %s", absDir, customCmd), "Enter")
+		if err != nil {
+			return fmt.Errorf("failed to start custom command: %w", err)
+		}
+	} else if terminal == "nextui" {
 		_, err = tmux.Command("send-keys", "-R", "-t", pane2.Id, fmt.Sprintf("cd %s && nextui", absDir), "Enter")
 		if err != nil {
 			return fmt.Errorf("failed to start nextui: %w", err)

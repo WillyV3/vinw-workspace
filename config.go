@@ -11,6 +11,18 @@ type Config struct {
 	AgentOptions    []string `json:"agent_options"`
 }
 
+// WorkspaceCommand represents a custom command to run in terminal pane
+type WorkspaceCommand struct {
+	Name        string `json:"name"`
+	Command     string `json:"command"`
+	Description string `json:"description"`
+}
+
+// WorkspaceConfig stores custom commands for workspaces
+type WorkspaceConfig struct {
+	Commands []WorkspaceCommand `json:"commands"`
+}
+
 var defaultConfig = Config{
 	TerminalOptions: []string{"shell", "nextui"},
 	AgentOptions:    []string{"claude", "opencode", "crush", "codex", "none"},
@@ -70,4 +82,62 @@ func saveConfig(config Config) error {
 	}
 
 	return os.WriteFile(configFile, data, 0644)
+}
+
+// getVinwDir returns the ~/.vinw directory (shared with vinw)
+func getVinwDir() (string, error) {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return "", err
+	}
+	vinwDir := filepath.Join(homeDir, ".vinw")
+	if err := os.MkdirAll(vinwDir, 0755); err != nil {
+		return "", err
+	}
+	return vinwDir, nil
+}
+
+// loadWorkspaceCommands loads custom commands from ~/.vinw/workspace.conf
+func loadWorkspaceCommands() ([]WorkspaceCommand, error) {
+	vinwDir, err := getVinwDir()
+	if err != nil {
+		return []WorkspaceCommand{}, err
+	}
+
+	confFile := filepath.Join(vinwDir, "workspace.conf")
+
+	// Return empty list if file doesn't exist yet
+	if _, err := os.Stat(confFile); os.IsNotExist(err) {
+		return []WorkspaceCommand{}, nil
+	}
+
+	data, err := os.ReadFile(confFile)
+	if err != nil {
+		return []WorkspaceCommand{}, err
+	}
+
+	var config WorkspaceConfig
+	if err := json.Unmarshal(data, &config); err != nil {
+		return []WorkspaceCommand{}, err
+	}
+
+	return config.Commands, nil
+}
+
+// saveWorkspaceCommands saves custom commands to ~/.vinw/workspace.conf
+func saveWorkspaceCommands(commands []WorkspaceCommand) error {
+	vinwDir, err := getVinwDir()
+	if err != nil {
+		return err
+	}
+
+	confFile := filepath.Join(vinwDir, "workspace.conf")
+
+	config := WorkspaceConfig{Commands: commands}
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(confFile, data, 0644)
 }

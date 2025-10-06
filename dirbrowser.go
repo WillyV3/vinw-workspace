@@ -97,12 +97,21 @@ func (m *model) updateViewport() {
 		return
 	}
 
-	availableHeight := m.height - 12
+	// Account for full-height container layout:
+	// - Container height: m.height - 2 (margin for border)
+	// - Border: 2 (1 top + 1 bottom)
+	// - Padding: 2 (1 top + 1 bottom)
+	// - Title + spacing: 3 lines
+	// - Current dir + spacing: 3 lines
+	// - Separators: 4 lines (2 separators + surrounding spacing)
+	// - Help text: 1 line
+	// Total overhead: ~15 lines
+	availableHeight := m.height - 17
 	if m.creatingNewDir || m.searching {
-		availableHeight -= 2
+		availableHeight -= 3 // Extra lines for input
 	}
-	if availableHeight < 3 {
-		availableHeight = 3
+	if availableHeight < 5 {
+		availableHeight = 5 // Minimum visible items
 	}
 
 	if m.cursor >= len(m.filteredFiles) {
@@ -136,25 +145,42 @@ func (m model) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		if m.searching {
 			switch msg.String() {
 			case "enter":
-				// Select highlighted directory (or current if on a file)
+				// Navigate INTO the directory (stay in browser to continue exploring)
 				if m.cursor < len(m.filteredFiles) {
 					entry := m.filteredFiles[m.cursor]
 					if entry.IsDir {
-						m.directory = entry.Path
+						m.loadDirectory(entry.Path)
+					}
+				}
+				// Exit search mode but stay in directory browser
+				m.searching = false
+				m.searchInput.Blur()
+				m.searchInput.SetValue("")
+				m.updateViewport() // Restore viewport to full size
+				return m, nil
+			case "tab":
+				// SELECT this as final directory choice and move to next field
+				if m.cursor < len(m.filteredFiles) {
+					entry := m.filteredFiles[m.cursor]
+					if entry.IsDir {
+						m.loadDirectory(entry.Path)
 					}
 				}
 				m.searching = false
 				m.searchInput.Blur()
+				m.searchInput.SetValue("")
 				m.focusIndex = 1
 				m.inputs[0].Focus()
 				m.inputs[0].PromptStyle = focusedStyle
 				m.inputs[0].TextStyle = focusedStyle
+				m.updateViewport() // Restore viewport to full size
 				return m, nil
 			case "esc":
 				m.searching = false
 				m.searchInput.Blur()
 				m.searchInput.SetValue("")
 				m.filterFiles()
+				m.updateViewport() // Restore viewport to full size
 				return m, nil
 			case "up", "k":
 				if m.cursor > 0 {
@@ -182,8 +208,8 @@ func (m model) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 					fullPath := filepath.Join(m.directory, dirName)
 					err := os.MkdirAll(fullPath, 0755)
 					if err == nil {
-						// Create and select the new directory, move to next field
-						m.directory = fullPath
+						// Create new directory and load it
+						m.loadDirectory(fullPath)
 						m.creatingNewDir = false
 						m.newDirInput.Blur()
 						m.newDirInput.SetValue("")
@@ -199,6 +225,7 @@ func (m model) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				m.creatingNewDir = false
 				m.newDirInput.Blur()
 				m.newDirInput.SetValue("")
+				m.updateViewport() // Restore viewport to full size
 				return m, nil
 			default:
 				var cmd tea.Cmd
@@ -213,11 +240,11 @@ func (m model) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			case "esc":
 				return m, tea.Quit
 			case "enter", "tab":
-				// Select highlighted directory (or current if on a file)
+				// Select highlighted directory and load its contents
 				if m.cursor < len(m.filteredFiles) {
 					entry := m.filteredFiles[m.cursor]
 					if entry.IsDir {
-						m.directory = entry.Path
+						m.loadDirectory(entry.Path)
 					}
 				}
 				// Move to next field
@@ -245,10 +272,12 @@ func (m model) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			case "n":
 				m.creatingNewDir = true
 				m.newDirInput.Focus()
+				m.updateViewport() // Recalculate viewport with reduced space
 				return m, nil
 			case "s", " ":
 				m.searching = true
 				m.searchInput.Focus()
+				m.updateViewport() // Recalculate viewport with reduced space
 				return m, nil
 			case "up", "k":
 				if m.cursor > 0 {
@@ -268,6 +297,35 @@ func (m model) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	}
 
 	// Rest of the form (session name, terminal, agent, button)
+
+	// When session input is focused, block all navigation except esc
+	if m.focusIndex == 1 && m.inputs[0].Focused() {
+		switch msg.String() {
+		case "ctrl+c":
+			return m, tea.Quit
+		case "esc":
+			// Blur the input, go back to directory browser
+			m.focusIndex = 0
+			m.inputs[0].Blur()
+			m.inputs[0].PromptStyle = noStyle
+			m.inputs[0].TextStyle = noStyle
+			m.loadDirectory(m.directory)
+			return m, nil
+		case "enter":
+			// Move to next field (terminal selection)
+			m.inputs[0].Blur()
+			m.inputs[0].PromptStyle = noStyle
+			m.inputs[0].TextStyle = noStyle
+			m.focusIndex = 2
+			return m, nil
+		default:
+			// Allow only text input, block all navigation
+			var cmd tea.Cmd
+			m.inputs[0], cmd = m.inputs[0].Update(msg)
+			return m, cmd
+		}
+	}
+
 	switch msg.String() {
 	case "ctrl+c":
 		return m, tea.Quit
@@ -283,6 +341,15 @@ func (m model) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			return m, nil
 		}
 		return m, tea.Quit
+
+	case "c":
+		// Open custom commands list (only when not in directory browser)
+		if m.focusIndex > 0 {
+			m.currentState = stateCommands
+			// Update list height to fit terminal
+			m.commandsList.SetSize(m.width-10, m.height-15)
+			return m, nil
+		}
 
 	case "tab", "shift+tab":
 		s := msg.String()
@@ -369,12 +436,6 @@ func (m model) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		return m, tea.Batch(cmds...)
 	}
 
-	// Update text inputs for session name
-	if m.focusIndex == 1 {
-		var cmd tea.Cmd
-		m.inputs[0], cmd = m.inputs[0].Update(msg)
-		return m, cmd
-	}
-
+	// Note: Session input update is handled in the focused block above
 	return m, nil
 }

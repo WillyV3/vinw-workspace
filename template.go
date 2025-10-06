@@ -13,12 +13,14 @@ func generateSessionID(path string) string {
 	return fmt.Sprintf("%x", hash[:4])
 }
 
-func getPreviewContent(dir, session, terminal, agent string) string {
+func getPreviewContent(dir, session, terminal, agent, customCmd string) string {
 	absDir, _ := filepath.Abs(dir)
 	sessionID := generateSessionID(absDir)
 
 	var terminalDisplay, agentDisplay string
-	if terminal == "nextui" {
+	if customCmd != "" {
+		terminalDisplay = fmt.Sprintf("custom: %s", customCmd)
+	} else if terminal == "nextui" {
 		terminalDisplay = "nextui (Next.js scaffolder)"
 	} else {
 		terminalDisplay = "shell (empty terminal)"
