@@ -7,6 +7,7 @@ import (
 
 	"github.com/charmbracelet/bubbles/list"
 	"github.com/charmbracelet/bubbles/textinput"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 )
@@ -67,47 +68,63 @@ const (
 	statePreview
 	stateLaunching
 	stateNoobs
+	stateNoobsHelp
+	stateInstallSelection
 	stateCommands
 )
 
 type model struct {
-	width, height      int
-	currentState       state
-	menuCursor         int
-	animFrame          int
-	focusIndex         int
-	inputs             []textinput.Model
-	terminalCursor     int
-	agentCursor        int
-	terminalOptions    []string
-	agentOptions       []string
-	directory          string
-	files              []fileEntry
-	filteredFiles      []fileEntry
-	cursor             int
-	viewportStart      int
-	viewportEnd        int
-	newDirInput        textinput.Model
-	searchInput        textinput.Model
-	creatingNewDir     bool
-	searching          bool
-	err                error
-	shouldLaunch       bool
-	launchDir          string
-	launchSession      string
-	launchTerminal     string
-	launchAgent        string
-	launchSessionID    string
-	launchCustomCmd    string
-	commandsList       list.Model
-	workspaceCommands  []WorkspaceCommand
-	selectedCommandIdx int
-	addingCommand      bool
-	commandNameInput   textinput.Model
-	commandCmdInput    textinput.Model
-	commandDescInput   textinput.Model
-	noobsCursor        int
-	statusMessage      statusMsg
+	width, height       int
+	currentState        state
+	menuCursor          int
+	animFrame           int
+	focusIndex          int
+	inputs              []textinput.Model
+	terminalCursor      int
+	agentCursor         int
+	terminalOptions     []string
+	agentOptions        []string
+	directory           string
+	files               []fileEntry
+	filteredFiles       []fileEntry
+	cursor              int
+	viewportStart       int
+	viewportEnd         int
+	newDirInput         textinput.Model
+	searchInput         textinput.Model
+	creatingNewDir      bool
+	searching           bool
+	err                 error
+	shouldLaunch        bool
+	launchDir           string
+	launchSession       string
+	launchTerminal      string
+	launchAgent         string
+	launchSessionID     string
+	launchCustomCmd     string
+	commandsList        list.Model
+	workspaceCommands   []WorkspaceCommand
+	selectedCommandIdx  int
+	addingCommand       bool
+	commandNameInput    textinput.Model
+	commandCmdInput     textinput.Model
+	commandDescInput    textinput.Model
+	noobsCursor         int
+	statusMessage       statusMsg
+	showingNoobsDialog  bool
+	noobsDialogContent  dialogContent
+	helpViewport        viewport.Model
+	helpReady           bool
+	installMethodCursor int
+	installMethods      []installMethod
+}
+
+type installMethod struct {
+	name        string
+	description string
+	command     string
+	args        []string
+	available   bool
 }
 
 type statusMsg struct {
@@ -243,6 +260,10 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m.updatePreview(msg)
 		case stateNoobs:
 			return updateNoobs(msg, m)
+		case stateNoobsHelp:
+			return updateNoobsHelp(msg, m)
+		case stateInstallSelection:
+			return updateInstallSelection(msg, m)
 		case stateCommands:
 			return updateCommands(msg, m)
 		}
@@ -314,6 +335,10 @@ func (m model) View() string {
 		return m.viewPreview()
 	case stateNoobs:
 		return viewNoobs(m)
+	case stateNoobsHelp:
+		return viewNoobsHelp(m)
+	case stateInstallSelection:
+		return viewInstallSelection(m)
 	case stateCommands:
 		return viewCommands(m)
 	default:
@@ -409,8 +434,8 @@ func (m model) viewInput() string {
 
 		// Full-height container (leave 1 char margin for border on each side)
 		fullHeightContainer := lipgloss.NewStyle().
-			Width(m.width - 2).
-			Height(m.height - 2).
+			Width(m.width-2).
+			Height(m.height-2).
 			Padding(1, 2).
 			Border(lipgloss.RoundedBorder()).
 			BorderForeground(purpleColor)
@@ -592,8 +617,8 @@ func (m model) viewInput() string {
 
 	// Full-height container
 	fullHeightContainer := lipgloss.NewStyle().
-		Width(m.width - 2).
-		Height(m.height - 2).
+		Width(m.width-2).
+		Height(m.height-2).
 		Padding(1, 2).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(purpleColor)
@@ -704,8 +729,8 @@ func (m model) viewPreview() string {
 
 	// Full-height container (account for border)
 	fullHeightContainer := lipgloss.NewStyle().
-		Width(m.width - 4).   // -4 for border (2) + margin (2)
-		Height(m.height - 4). // -4 for border (2) + margin (2)
+		Width(m.width-4).   // -4 for border (2) + margin (2)
+		Height(m.height-4). // -4 for border (2) + margin (2)
 		Padding(1, 2).
 		Border(lipgloss.RoundedBorder()).
 		BorderForeground(purpleColor)

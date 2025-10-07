@@ -74,22 +74,6 @@ set -g @catppuccin_flavor 'mocha'  # or latte, frappe, macchiato
 3. Arrow keys to select
 4. Enter to copy to clipboard
 
-## Tmux Wizard Integration
-
-**Launch:** `prefix + q`
-
-**What it provides:**
-- Interactive session browser
-- Visual pane layouts
-- Quick workspace creation
-- Integrated with this vinw tool
-
-**Benefits:**
-- No need to remember session names
-- Visual preview of layouts
-- Faster workflow switching
-- Mouse-friendly interface
-
 ## Mouse Mode Features
 
 With mouse mode enabled, you can:
@@ -127,15 +111,6 @@ bind-key r source-file ~/.tmux.conf \; display-message "~/.tmux.conf reloaded."
 - Quick feedback message
 - Instant config changes
 - No session restart
-
-### Wizard Popup
-```
-bind-key q display-popup -E -w 70% -h 60% ...
-```
-- 70% of terminal width
-- 60% of terminal height
-- Centered popup
-- Closes on exit
 
 ## Status Bar Customization
 
