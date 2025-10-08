@@ -1,7 +1,7 @@
 package main
 
 import (
-	_ "embed"
+	"embed"
 	"fmt"
 	"os"
 	"os/exec"
@@ -30,6 +30,9 @@ var configFeaturesAscii string
 
 //go:embed ascii/install-tmux.txt
 var installTmuxAscii string
+
+//go:embed help-docs/*
+var helpDocs embed.FS
 
 // Dracula theme colors for help content
 var (
@@ -86,9 +89,9 @@ var noobsHelpContent = map[int]helpDoc{
 
 // renderMarkdownHelp reads a markdown file and renders it with glamour
 func renderMarkdownHelp(mdFile string, viewportWidth int) (string, error) {
-	// Read markdown file from help-docs directory
+	// Read markdown file from embedded help-docs directory
 	helpDocsPath := filepath.Join("help-docs", mdFile)
-	mdContent, err := os.ReadFile(helpDocsPath)
+	mdContent, err := helpDocs.ReadFile(helpDocsPath)
 	if err != nil {
 		return "", fmt.Errorf("failed to read %s: %w", mdFile, err)
 	}
@@ -201,7 +204,29 @@ func updateNoobs(msg tea.Msg, m model) (tea.Model, tea.Cmd) {
 				return m, nil
 
 			case 1:
-				// Install .tmux.conf - show confirmation dialog
+				// Install .tmux.conf - check for plugins first
+				if !install.ArePluginsInstalled() {
+					// Plugins missing - show plugin installation dialog
+					m.showingNoobsDialog = true
+					m.noobsDialogContent = dialogContent{
+						title: "📦 Install tmux plugins?",
+						description: `The tmux.conf requires plugins to work properly:
+  • TPM (Tmux Plugin Manager) - Plugin management
+  • Catppuccin - Theme for status bar
+
+Without these plugins, tmux will show 127 errors.
+
+Install plugins before proceeding with tmux.conf?`,
+						confirmKey:  "y",
+						cancelKey:   "n",
+						confirmText: "Yes, install plugins",
+						cancelText:  "Skip plugins (minimal config)",
+						onConfirm:   installPluginsThenConfig(),
+					}
+					return m, nil
+				}
+
+				// Plugins already installed - show normal tmux.conf dialog
 				m.showingNoobsDialog = true
 				m.noobsDialogContent = dialogContent{
 					title: "⚠️  Install tmux.conf?",
@@ -284,6 +309,52 @@ func installTmuxConfig() tea.Cmd {
 		}
 
 		return statusMsg{text: "✓ .tmux.conf installed successfully!", isError: false}
+	}
+}
+
+// installPluginsThenConfig installs TPM and Catppuccin plugins, then installs tmux.conf
+func installPluginsThenConfig() tea.Cmd {
+	return func() tea.Msg {
+		// Install TPM
+		if err := install.InstallTPM(); err != nil {
+			return statusMsg{text: fmt.Sprintf("Error installing TPM: %v", err), isError: true}
+		}
+
+		// Install Catppuccin
+		if err := install.InstallCatppuccin(); err != nil {
+			return statusMsg{text: fmt.Sprintf("Error installing Catppuccin: %v", err), isError: true}
+		}
+
+		// Now install tmux.conf
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return statusMsg{text: "Error: Could not find home directory", isError: true}
+		}
+
+		tmuxConfPath := filepath.Join(homeDir, ".tmux.conf")
+
+		// Check if file already exists
+		if _, err := os.Stat(tmuxConfPath); err == nil {
+			// Create timestamped backup
+			timestamp := time.Now().Format("20060102-150405")
+			backupPath := fmt.Sprintf("%s.backup.%s", tmuxConfPath, timestamp)
+
+			// Copy existing config to backup
+			originalContent, err := os.ReadFile(tmuxConfPath)
+			if err != nil {
+				return statusMsg{text: "Error: Could not read existing .tmux.conf", isError: true}
+			}
+			if err := os.WriteFile(backupPath, originalContent, 0644); err != nil {
+				return statusMsg{text: "Error: Could not backup existing .tmux.conf", isError: true}
+			}
+		}
+
+		// Write the new config
+		if err := os.WriteFile(tmuxConfPath, []byte(tmuxConfigTemplate), 0644); err != nil {
+			return statusMsg{text: "Error: Could not write .tmux.conf", isError: true}
+		}
+
+		return statusMsg{text: "✓ Plugins and .tmux.conf installed successfully!", isError: false}
 	}
 }
 
